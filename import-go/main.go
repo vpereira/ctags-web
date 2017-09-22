@@ -6,7 +6,8 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-
+	"fmt"
+	
 	mgo "gopkg.in/mgo.v2"
 )
 
@@ -77,13 +78,24 @@ func ReadExtractFile(path string) []byte {
 }
 
 func main() {
-	searchDir := "/home/vpereira/node-v6.11.1-linux-x64"
+
+	if len(os.Args) < 5 {
+		fmt.Println("usage: ", os.Args[0], " <server> <db-name> <collection-name> <directory>")
+		os.Exit(1)
+	}
+
+	serverName := os.Args[1]
+	dbName := os.Args[2]
+	colName := os.Args[3]
+	searchDir := os.Args[4]
+
 	jobs := make(chan string)
-	session, err := mgo.Dial("172.17.0.2/ctags")
+	session, err := mgo.Dial(serverName)
 	if err != nil {
 		panic(err)
 	}
-	c := session.DB("ctags").C("code")
+	c := session.DB(dbName).C(colName)
+
 	go writeCode(c, jobs)
 	filepath.Walk(searchDir, func(path string, f os.FileInfo, err error) error {
 		if IsFile(path) && IsText(ReadExtractFile(path)) {
