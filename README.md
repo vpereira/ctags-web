@@ -46,6 +46,6 @@ Start mongodb with the command:
 
 ```bash scripts/start_mongo.sh```
 
-TODO: put the script to run as ENTRYPOINT
+TODO: put the script to run as ```ENTRYPOINT```
 
 now you have a mongodb up and running. You can connect with it, giving the ip (172.17.0.2)
