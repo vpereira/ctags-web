@@ -1,0 +1,10 @@
+<html>
+<title>{{.FileName}}</title>
+<body>
+  <div style="background: #eef;">
+    {{range .CodeLines}}
+    <pre><a name="{{ printf "l%d" .LineCount }}" href="{{ printf "#l%d" .LineCount }}">{{.LineCount}}</a>: {{.Line}}</pre>
+    {{end}}
+  </div>
+</body>
+</html>
