@@ -66,8 +66,6 @@ func (env *Env) BrowsingHandler(w http.ResponseWriter, r *http.Request) {
 		log.Fatal(err)
 	}
 
-	fmt.Println(tmpl)
-
 	// it should be configurable
 	col := env.SetDB("ctags", "code")
 	FilePath := r.FormValue("file")
