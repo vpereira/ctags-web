@@ -1,0 +1,22 @@
+version: "2"
+services:
+  db:
+    image: mongo
+    command: --nojournal --smallfiles
+    ports:
+      - "27017:27017"
+  web:
+    image: ctags-web/web
+    build:
+      dockerfile: Dockerfile
+      context: .
+    volumes:
+      - $PWD:/ctags-web
+      - $HOME/ImageMagick:/data/sources/ImageMagick
+    working_dir: /ctags-web
+
+    command: tail -f /dev/null
+    ports:
+      - "8080:8080"
+    depends_on:
+      - db
