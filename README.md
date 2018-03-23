@@ -29,6 +29,11 @@ You do it using the tool ```index-go```. It should be called like:
 ```
 where $MONGODB is the ip of your mongodb server and $MYCTAGSJSON your ```ctags.json```
 
+then import source code from $DIR
+
+```
+./import-go $MONGODB $DB code $DIR # the collection is hardcoded in the web-go, we have to fix it
+```
 
 After that, starts the server rom ```web-go``` as:
 
