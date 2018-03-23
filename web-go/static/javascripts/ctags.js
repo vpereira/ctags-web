@@ -55,7 +55,7 @@ function search() {
             // you have to change it to point to your server
             base_url="/show?file=/"+item_new_path+"#l"+item.line;
             f = $("<span/>").addClass('lbl green').addClass('mono')
-                .html("<a href=" + base_url +">" + item.path + ":" + item.line + "</a>");
+                .html("<a href=" + base_url + " rel='external' >" + item.path + ":" + item.line + "</a>");
 
             meta = $("<div/>").attr({'class':'ui-li-desc'})
                 .append(f)
@@ -83,6 +83,6 @@ function instantify(id, fn) {
 }
 
 function init() {
-    //blur_input_box("input#q", 'search');
+    blur_input_box("input#q", 'search');
     instantify("input#q", '');
 }

@@ -76,7 +76,6 @@ func (env *Env) BrowsingHandler(w http.ResponseWriter, r *http.Request) {
 		LineCount, _ = strconv.Atoi(r.FormValue("linecount"))
 	}
 
-	fmt.Println(FilePath, LineCount)
 	col.Find(bson.M{"filepath": FilePath}).Select(bson.M{"_id": 0, "linecount": 1, "line": 1}).Sort("linecount").All(&results)
 
 	if len(results) <= 0 {
