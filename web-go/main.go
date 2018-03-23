@@ -9,6 +9,7 @@ import (
 	"os"
 	"strconv"
 
+	"github.com/gorilla/handlers"
 	mgo "gopkg.in/mgo.v2"
 	"gopkg.in/mgo.v2/bson"
 )
@@ -75,6 +76,7 @@ func (env *Env) BrowsingHandler(w http.ResponseWriter, r *http.Request) {
 		LineCount, _ = strconv.Atoi(r.FormValue("linecount"))
 	}
 
+	fmt.Println(FilePath, LineCount)
 	col.Find(bson.M{"filepath": FilePath}).Select(bson.M{"_id": 0, "linecount": 1, "line": 1}).Sort("linecount").All(&results)
 
 	if len(results) <= 0 {
@@ -134,5 +136,5 @@ func main() {
 	http.Handle("/", http.FileServer(http.Dir("static")))
 	http.HandleFunc("/token", env.TokenHandler)
 	http.HandleFunc("/show", env.BrowsingHandler)
-	http.ListenAndServe(":8080", nil)
+	http.ListenAndServe(":8080", handlers.LoggingHandler(os.Stdout, http.DefaultServeMux))
 }
