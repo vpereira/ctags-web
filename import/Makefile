@@ -7,5 +7,6 @@ deps:
 tests: deps
 	go test
 
+.PHONY: clean
 clean:
 	rm import
