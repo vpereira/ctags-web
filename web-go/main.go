@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
-
+  "path/filepath"
 	"github.com/gorilla/handlers"
 	mgo "gopkg.in/mgo.v2"
 	"gopkg.in/mgo.v2/bson"
@@ -61,7 +61,15 @@ func (env *Env) BrowsingHandler(w http.ResponseWriter, r *http.Request) {
 
 	//w.Header().Add("Content-Type", "text/html")
 
-	tmpl, err := template.ParseFiles("show.html")
+	wd, _ := os.Getwd()
+
+	println("working dir", wd)
+
+  showPath := filepath.Join(wd,"static", "show.html")
+
+  println("show path", showPath)
+
+	tmpl, err := template.ParseFiles(showPath)
 
 	if err != nil {
 		log.Fatal(err)
