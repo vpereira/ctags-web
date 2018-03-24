@@ -49,11 +49,16 @@ function search() {
             k = $("<span/>").addClass('lbl')
                 .html(item.kind);
 
+            /*
+            Maybe something for paths like Foo:Bar:y build service format
+            */
+            /*
 	          path_items = item.path.split('/');
 	          repository = path_items.shift();
 	          item_new_path = path_items.join('/');
+            */
             // you have to change it to point to your server
-            base_url="/show?file=/"+item_new_path+"#l"+item.line;
+            base_url="/show?file="+item.path+"#l"+item.line;
             f = $("<span/>").addClass('lbl green').addClass('mono')
                 .html("<a href=" + base_url + " rel='external' >" + item.path + ":" + item.line + "</a>");
 

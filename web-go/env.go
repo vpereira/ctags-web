@@ -55,7 +55,7 @@ func (env *Env) BrowsingHandler(w http.ResponseWriter, r *http.Request) {
 	// it should be configurable
 	col := env.SetDB("ctags", "code")
 	FilePath := r.FormValue("file")
-	LineCount := 0
+	LineCount := 1
 
 	if r.FormValue("linecount") != "" {
 		LineCount, _ = strconv.Atoi(r.FormValue("linecount"))
