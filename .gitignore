@@ -1,4 +1,4 @@
-web-go/web-go
-index-go/index-go
-import-go/import-go
+web/web
+index/index
+import/import
 ctags.json
