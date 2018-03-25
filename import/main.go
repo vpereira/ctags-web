@@ -7,7 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"fmt"
-	
+
 	mgo "gopkg.in/mgo.v2"
 )
 
@@ -52,7 +52,8 @@ func writeCode(c *mgo.Collection, jobs chan string) {
 		}
 	}
 }
-
+// TODO
+// add different types
 func IsText(content []byte) bool {
 	contentType := http.DetectContentType(content)
 	if contentType == "application/octet-stream" {

@@ -12,9 +12,7 @@ services:
       context: .
     volumes:
       - $PWD:/ctags-web
-      - $HOME/ImageMagick:/data/sources/ImageMagick
-    working_dir: /ctags-web
-
+    working_dir: /ctags-web/web
     command: tail -f /dev/null
     ports:
       - "8080:8080"
