@@ -3,6 +3,8 @@ services:
   db:
     image: mongo
     command: --nojournal --smallfiles
+    volumes:
+      - "/data/db:/data/db"
     ports:
       - "27017:27017"
   web:
