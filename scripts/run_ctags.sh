@@ -1,3 +1,4 @@
+#!/bin/bash
 # relative to the root directory
 if [ "$1" == "" ]; then
   DIR="testProject"
