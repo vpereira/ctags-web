@@ -2,11 +2,11 @@ package main
 
 import (
 	"bufio"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"path/filepath"
-	"fmt"
 
 	mgo "gopkg.in/mgo.v2"
 )
@@ -52,11 +52,25 @@ func writeCode(c *mgo.Collection, jobs chan string) {
 		}
 	}
 }
-// TODO
-// add different types
+
+// maybe just match if content-type ~= /^text/
+// and application/xml and inode/x-empty
 func IsText(content []byte) bool {
 	contentType := http.DetectContentType(content)
-	if contentType == "application/octet-stream" {
+	switch contentType {
+	case
+		"application/octet-stream",
+		"application/x-tar",
+		"application/x-bzip2",
+		"application/x-gzip",
+		"image/jpeg", "image/x-portable-pixmap",
+		"image/x-ms-bmp", "image/x-icon", "image/svg+xml",
+		"image/png", "image/gif", "image/x-xpmi",
+		"application/postscript",
+		"application/x-xz",
+		"application/pdf",
+		"application/pgp-signature",
+		"application/zip":
 		return false
 	}
 	return true
@@ -69,6 +83,9 @@ func IsFile(path string) bool {
 	return false
 }
 
+// extract the first 512 bytes from file
+// use it for the detection function IsText
+// the 512 should be configurable
 func ReadExtractFile(path string) []byte {
 	fs, _ := os.Open(path)
 	defer fs.Close()
