@@ -7,7 +7,6 @@ fi
 
 # one container per package
 for d in `find $1 -mindepth 2 -maxdepth 2 -type d`; do
-  echo $d
   # $d is full path
   LNAME=`echo $d | sed -e 's/^\///' | sed -e 's/:\|\//_/g'`
   JSON_PATH=$1/$LNAME.json
