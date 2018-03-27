@@ -13,7 +13,3 @@ for d in `find $1 -mindepth 2 -maxdepth 2 -type d`; do
   docker run --rm --name $LNAME --network="ctagsweb_default" -v "$PWD:/ctags-web" -v "$1:$1" -d ctags-web/web bash -c "/ctags-web/import/import db ctags code $d"
   sleep $[ ( $RANDOM % 2 )  + 1 ]s
 done
-
-for d in `find $1 -maxdepth 1 -type d`; do
-
-done
