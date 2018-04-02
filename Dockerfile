@@ -6,4 +6,5 @@ RUN zypper -n up
 RUN zypper -n in go screen git mongodb-shell
 RUN zypper -n in autoconf gcc make pkg-config
 RUN zypper -n in libjansson-devel libxml2-devel libyaml-devel
-RUN zypper -n in universal-ctags
+RUN zypper -n in universal-ctags python python-devel python-pip
+RUN pip install mongo-connector[elastic5] elastic-doc-manager

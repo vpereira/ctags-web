@@ -2,3 +2,5 @@ web/web
 index/index
 import/import
 ctags.json
+*.log
+*.timestamp
