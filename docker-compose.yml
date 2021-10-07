@@ -2,7 +2,7 @@ version: "2"
 services:
   db:
     image: mongo
-    command: --nojournal --smallfiles
+    command: --nojournal
     volumes:
       - "/data/db:/data/db"
     ports:
