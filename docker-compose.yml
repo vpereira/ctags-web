@@ -1,12 +1,20 @@
-version: "2"
 services:
-  db:
-    image: mongo
-    command: --nojournal
+  postgres:
+    image: postgres
+    restart: on-failure
+    environment:
+      - POSTGRES_USER=test
+      - POSTGRES_PASSWORD=test
+      - POSTGRES_DB=ferretdb
     volumes:
-      - "/data/db:/data/db"
+      - ./data:/var/lib/postgresql/data
+  ferretdb:
+    image: ghcr.io/ferretdb/ferretdb
+    restart: on-failure
     ports:
       - "27017:27017"
+    environment:
+      - FERRETDB_POSTGRESQL_URL=postgres://postgres:5432/ferretdb
   web:
     image: ctags-web/web
     build:
@@ -19,4 +27,4 @@ services:
     ports:
       - "8080:8080"
     depends_on:
-      - db
+      - ferretdb

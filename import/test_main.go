@@ -1,7 +1,7 @@
 package main
 
 import (
-	"io/ioutil"
+	"os"
 	"testing"
 )
 
@@ -27,7 +27,7 @@ func TestreadFine(t *testing.T) {
 func TestIsText(t *testing.T) {
 	files := [3]string{"main.go", "Makefile", "import-codebase.sh"}
 	for _, fname := range files {
-		f, _ := ioutil.ReadFile(fname)
+		f, _ := os.ReadFile(fname)
 		if IsText(f) == false {
 			t.Error("mime-type wrong identified")
 		}
