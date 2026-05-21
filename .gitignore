@@ -1,4 +1,9 @@
+data
+.gocache
 web/web
 index/index
 import/import
 ctags.json
+import/ctags-import
+index/ctags-index
+web/ctags-web

@@ -2,90 +2,114 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"io"
 	"log"
 	"os"
+	"os/signal"
+	"sync"
+	"syscall"
 
-	"gopkg.in/mgo.v2"
-	"gopkg.in/mgo.v2/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
-/*
-{"_type": "tag", "name": " -valid (S)",
-"path": "SUSE:SLE-10-SP3:Update:Test/samba/samba-3.0.36/docs/htmldocs/manpages/smb.conf.5.html",
-"pattern": "/^<\\/h3><\\/div><\\/div><\\/div><a class=\"indexterm\" name=\"id2562560\"><\\/a><a name=\"-VALID\"><\\/a><div/",
-"language": "HTML", "line": 5707, "kind": "heading3"}
-*/
+// Ctag represents a single universal-ctags JSON output record.
 type Ctag struct {
-	Type     string `json:"_type"`
-	Name     string `json:"name"`
-	Path     string `json:"path"`
-	Pattern  string `json:"pattern"`
-	Language string `json:"language"`
-	Line     int    `json:"line"`
-	Kind     string `json:"kind"`
+	Type     string `bson:"_type"`
+	Name     string `bson:"name"`
+	Path     string `bson:"path"`
+	Pattern  string `bson:"pattern"`
+	Language string `bson:"language"`
+	Line     int    `bson:"line"`
+	Kind     string `bson:"kind"`
 }
 
 func main() {
-
-	jobs := make(chan string)
-
 	if len(os.Args) < 3 {
-		fmt.Println("usage: ", os.Args[0], " <server> <json-file>")
+		fmt.Fprintf(os.Stderr, "usage: %s <connection-uri> <json-file>\n", os.Args[0])
 		os.Exit(1)
 	}
 
-	serverName := os.Args[1]
+	uri := os.Args[1]
 	jsonFile := os.Args[2]
 
-	file, err := os.Open(jsonFile)
+	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer cancel()
 
+	// Connect to MongoDB
+	client, err := mongo.Connect(options.Client().ApplyURI(uri))
 	if err != nil {
-		panic(err)
+		log.Fatalf("failed to connect to MongoDB: %v", err)
+	}
+	defer client.Disconnect(ctx)
+
+	if err := client.Ping(ctx, nil); err != nil {
+		log.Fatalf("failed to ping MongoDB: %v", err)
 	}
 
+	db := client.Database("ctags")
+	col := db.Collection("ctags")
+	indexModel := mongo.IndexModel{
+		Keys: bson.D{
+			{Key: "path", Value: 1},
+			{Key: "line", Value: 1},
+			{Key: "name", Value: 1},
+			{Key: "kind", Value: 1},
+			{Key: "pattern", Value: 1},
+		},
+		Options: options.Index().SetUnique(true),
+	}
+	if _, err := col.Indexes().CreateOne(ctx, indexModel); err != nil {
+		log.Fatalf("failed to create index: %v", err)
+	}
+
+	jobs := make(chan string)
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go insertTags(ctx, col, jobs, &wg)
+
+	file, err := os.Open(jsonFile)
+	if err != nil {
+		log.Fatalf("failed to open JSON file: %v", err)
+	}
 	defer file.Close()
 
-	session, err := mgo.Dial(serverName)
-
-	if err != nil {
-		panic(err)
-	}
-
-	defer session.Close()
-
-	session.SetMode(mgo.Monotonic, true)
-	// TODO
-	// configuration db and collection
-	c := session.DB("ctags").C("ctags")
-
-	go insertTags(c, jobs)
-
 	reader := bufio.NewReader(file)
-
 	for {
-		l, err := reader.ReadString('\n')
+		line, err := reader.ReadString('\n')
 		if err == io.EOF {
 			break
 		}
-		jobs <- l
+		if err != nil {
+			log.Fatalf("failed to read line: %v", err)
+		}
+		jobs <- line
 	}
 	close(jobs)
+	wg.Wait()
 }
-func insertTags(col *mgo.Collection, jobs chan string) {
+
+func insertTags(ctx context.Context, col *mongo.Collection, jobs <-chan string, wg *sync.WaitGroup) {
+	defer wg.Done()
 	for j := range jobs {
-		bdoc := Ctag{}
-		err := bson.UnmarshalJSON([]byte(j), &bdoc)
-		if err != nil {
-			log.Fatal(err)
+		var doc Ctag
+		if err := bson.UnmarshalExtJSON([]byte(j), true, &doc); err != nil {
+			log.Printf("failed to decode line: %v", err)
+			continue
 		}
-		// TODO
-		// do it configure. Either create or update
-		//_, err = col.Upsert(&bdoc, &bdoc)
-		col.Insert(&bdoc)
+		filter := bson.M{
+			"path":    doc.Path,
+			"line":    doc.Line,
+			"name":    doc.Name,
+			"kind":    doc.Kind,
+			"pattern": doc.Pattern,
+		}
+		_, err := col.ReplaceOne(ctx, filter, doc, options.Replace().SetUpsert(true))
 		if err != nil {
-			log.Fatal(err)
+			log.Printf("failed to insert document: %v", err)
 		}
 	}
 }

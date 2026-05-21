@@ -2,31 +2,37 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
 	"path/filepath"
+	"sync"
+	"syscall"
 
-	mgo "gopkg.in/mgo.v2"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
+// CodeLine represents a single line of source code stored in the database.
 type CodeLine struct {
-	FilePath  string `json:"path"`
-	Line      string `json:"line"`
-	LineCount int    `json:"line_count"`
+	FilePath  string `bson:"path"`
+	Line      string `bson:"line"`
+	LineCount int    `bson:"line_count"`
 }
 
-func readFile(fileName string) []CodeLine {
-	var codeLines []CodeLine
-	lineCount := 1
+func readFile(fileName string) ([]CodeLine, error) {
 	file, err := os.Open(fileName)
-
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 	defer file.Close()
 
+	var codeLines []CodeLine
+	lineCount := 1
 	scanner := bufio.NewScanner(file)
 	buf := make([]byte, 0, 64*1024)
 	scanner.Buffer(buf, 1024*1024)
@@ -35,26 +41,42 @@ func readFile(fileName string) []CodeLine {
 		codeLines = append(codeLines, doc)
 		lineCount++
 	}
-
 	if err := scanner.Err(); err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
-	return codeLines
+	return codeLines, nil
 }
 
-func writeCode(c *mgo.Collection, jobs chan string) {
-	for j := range jobs {
-		for _, doc := range readFile(j) {
-			err := c.Insert(&doc)
-			if err != nil {
-				log.Fatal(err)
+func writeCode(ctx context.Context, col *mongo.Collection, jobs <-chan string, wg *sync.WaitGroup) {
+	defer wg.Done()
+	for path := range jobs {
+		codeLines, err := readFile(path)
+		if err != nil {
+			log.Printf("failed to read file %s: %v", path, err)
+			continue
+		}
+		maxLineCount := 0
+		for _, doc := range codeLines {
+			if doc.LineCount > maxLineCount {
+				maxLineCount = doc.LineCount
 			}
+			filter := bson.M{"path": doc.FilePath, "line_count": doc.LineCount}
+			_, err := col.ReplaceOne(ctx, filter, doc, options.Replace().SetUpsert(true))
+			if err != nil {
+				log.Printf("failed to insert document for %s: %v", path, err)
+			}
+		}
+		_, err = col.DeleteMany(ctx, bson.M{
+			"path":       path,
+			"line_count": bson.M{"$gt": maxLineCount},
+		})
+		if err != nil {
+			log.Printf("failed to trim stale lines for %s: %v", path, err)
 		}
 	}
 }
 
-// maybe just match if content-type ~= /^text/
-// and application/xml and inode/x-empty
+// IsText returns true if the content appears to be text-based.
 func IsText(content []byte) bool {
 	contentType := http.DetectContentType(content)
 	switch contentType {
@@ -76,6 +98,7 @@ func IsText(content []byte) bool {
 	return true
 }
 
+// IsFile returns true if the path is a regular file.
 func IsFile(path string) bool {
 	if info, err := os.Stat(path); err == nil && info.Mode().IsRegular() {
 		return true
@@ -83,43 +106,64 @@ func IsFile(path string) bool {
 	return false
 }
 
-// extract the first 512 bytes from file
-// use it for the detection function IsText
-// the 512 should be configurable
-func ReadExtractFile(path string) []byte {
-	fs, _ := os.Open(path)
-	defer fs.Close()
-	n := 512
-	buff := make([]byte, n)
-	fs.Read(buff)
-	return buff
-}
-
 func main() {
-
 	if len(os.Args) < 5 {
-		fmt.Println("usage: ", os.Args[0], " <server> <db-name> <collection-name> <directory>")
+		fmt.Fprintf(os.Stderr, "usage: %s <connection-uri> <db-name> <collection-name> <directory>\n", os.Args[0])
 		os.Exit(1)
 	}
 
-	serverName := os.Args[1]
+	uri := os.Args[1]
 	dbName := os.Args[2]
 	colName := os.Args[3]
 	searchDir := os.Args[4]
 
-	jobs := make(chan string)
-	session, err := mgo.Dial(serverName)
-	if err != nil {
-		panic(err)
-	}
-	c := session.DB(dbName).C(colName)
+	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer cancel()
 
-	go writeCode(c, jobs)
+	client, err := mongo.Connect(options.Client().ApplyURI(uri))
+	if err != nil {
+		log.Fatalf("failed to connect to MongoDB: %v", err)
+	}
+	defer client.Disconnect(ctx)
+
+	if err := client.Ping(ctx, nil); err != nil {
+		log.Fatalf("failed to ping MongoDB: %v", err)
+	}
+
+	db := client.Database(dbName)
+	col := db.Collection(colName)
+	indexModel := mongo.IndexModel{
+		Keys:    bson.D{{Key: "path", Value: 1}, {Key: "line_count", Value: 1}},
+		Options: options.Index().SetUnique(true),
+	}
+	if _, err := col.Indexes().CreateOne(ctx, indexModel); err != nil {
+		log.Fatalf("failed to create index: %v", err)
+	}
+
+	jobs := make(chan string)
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go writeCode(ctx, col, jobs, &wg)
+
 	filepath.Walk(searchDir, func(path string, f os.FileInfo, err error) error {
-		if IsFile(path) && IsText(ReadExtractFile(path)) {
-			jobs <- path
+		if err != nil {
+			return err
+		}
+		if IsFile(path) {
+			// Read first 512 bytes for content type detection
+			data, err := os.ReadFile(path)
+			if err != nil {
+				return nil // skip unreadable files
+			}
+			if len(data) > 512 {
+				data = data[:512]
+			}
+			if IsText(data) {
+				jobs <- path
+			}
 		}
 		return nil
 	})
 	close(jobs)
+	wg.Wait()
 }

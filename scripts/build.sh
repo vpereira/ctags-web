@@ -1,4 +1,19 @@
 #!/bin/bash
-for d in import index web; do
-  cd $d && go get -d -v ./... && go build && cd ..
-done
+# Build all ctags-web binaries
+set -e
+
+cd "$(dirname "$0")/.."
+
+echo "==> Downloading dependencies..."
+go mod tidy
+
+echo "==> Building index..."
+go build -o index/ctags-index ./index/
+
+echo "==> Building import..."
+go build -o import/ctags-import ./import/
+
+echo "==> Building web..."
+go build -o web/ctags-web ./web/
+
+echo "==> Done"

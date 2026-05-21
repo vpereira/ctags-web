@@ -1,70 +1,90 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"html/template"
 	"log"
 	"net/http"
-	"os"
+	"path/filepath"
 	"strconv"
-  "path/filepath"
-	mgo "gopkg.in/mgo.v2"
-	"gopkg.in/mgo.v2/bson"
+
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
+// WebContext holds data passed to the show.html template.
+type WebContext struct {
+	CodeLines []CodeLine
+	FileName  string
+	LineCount int
+}
+
+// Env holds the MongoDB client and current database/collection.
 type Env struct {
-	Session    *mgo.Session
-	Db         *mgo.Database
-	Collection *mgo.Collection
+	Client     *mongo.Client
+	Db         *mongo.Database
+	Collection *mongo.Collection
 }
 
-func (env *Env) OpenDB(serverName string, db string, collection string) (*mgo.Session, error) {
-	Session, err := mgo.Dial(serverName)
-	env.Session = Session
-	if err == nil {
-		env.Session.SetMode(mgo.Monotonic, true)
+// OpenDB connects to MongoDB and selects the given database and collection.
+func (env *Env) OpenDB(ctx context.Context, uri string, db string, collection string) error {
+	client, err := mongo.Connect(options.Client().ApplyURI(uri))
+	if err != nil {
+		return err
 	}
-	env.Collection = env.SetDB(db, collection)
-	return env.Session, err
-}
-
-func (env *Env) SetDB(db string, collection string) *mgo.Collection {
-	return env.Session.DB(db).C(collection)
+	if err := client.Ping(ctx, nil); err != nil {
+		client.Disconnect(ctx)
+		return err
+	}
+	env.Client = client
+	env.Db = client.Database(db)
+	env.Collection = env.Db.Collection(collection)
+	return nil
 }
 
 func (env *Env) BrowsingHandler(w http.ResponseWriter, r *http.Request) {
-	var results []CodeLine
+	ctx := r.Context()
 
-	//w.Header().Add("Content-Type", "text/html")
-
-	wd, _ := os.Getwd()
-
-	println("working dir", wd)
-
-  showPath := filepath.Join(wd,"static", "show.html")
-
-  println("show path", showPath)
-
+	showPath := filepath.Join("static", "show.html")
 	tmpl, err := template.ParseFiles(showPath)
-
 	if err != nil {
-		log.Fatal(err)
+		log.Printf("failed to parse template: %v", err)
+		http.Error(w, "template error", http.StatusInternalServerError)
+		return
 	}
 
-	// it should be configurable
-	col := env.SetDB("ctags", "code")
 	FilePath := r.FormValue("file")
 	LineCount := 1
-
 	if r.FormValue("linecount") != "" {
 		LineCount, _ = strconv.Atoi(r.FormValue("linecount"))
 	}
 
-	col.Find(bson.M{"filepath": FilePath}).Select(bson.M{"_id": 0, "linecount": 1, "line": 1}).Sort("linecount").All(&results)
+	// Query the code collection for all lines of the given file
+	col := env.Db.Collection("code")
+	cursor, err := col.Find(ctx, bson.M{"path": FilePath}, options.Find().SetSort(bson.D{{Key: "line_count", Value: 1}}))
+	if err != nil {
+		log.Printf("query error: %v", err)
+		http.Error(w, http.StatusText(500), 500)
+		return
+	}
+	defer cursor.Close(ctx)
 
-	if len(results) <= 0 {
-		http.Error(w, http.StatusText(404), 404)
+	var results []CodeLine
+	for cursor.Next(ctx) {
+		var doc CodeLine
+		if err := cursor.Decode(&doc); err != nil {
+			log.Printf("decode error: %v", err)
+			continue
+		}
+		results = append(results, doc)
+	}
+
+	if len(results) == 0 {
+		http.NotFound(w, r)
+		return
 	}
 
 	context := WebContext{
@@ -73,26 +93,38 @@ func (env *Env) BrowsingHandler(w http.ResponseWriter, r *http.Request) {
 		LineCount: LineCount,
 	}
 
-	tmpl.Execute(w, context)
+	if err := tmpl.Execute(w, context); err != nil {
+		log.Printf("template execute error: %v", err)
+	}
 }
 
 func (env *Env) TokenHandler(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	w.Header().Set("Content-Type", "application/json")
 	token := r.FormValue("token")
-	results, err := env.FindName(token)
-	resultsSize := len(results)
-
+	results, err := env.FindName(ctx, token)
 	if err != nil {
 		http.Error(w, http.StatusText(500), 500)
+		return
 	}
-
+	resultsSize := len(results)
 	jsonResults, _ := json.Marshal(results)
 	fmt.Fprintf(w, "{\"results\": %s,\"count\": %d}", jsonResults, resultsSize)
 }
 
-// must return the results
-func (env *Env) FindName(name string) ([]Ctag, error) {
+func (env *Env) FindName(ctx context.Context, name string) ([]Ctag, error) {
 	var results []Ctag
-	err := env.Collection.Find(bson.M{"name": bson.M{"$regex": bson.RegEx{name, ""}}}).All(&results)
-	return results, err
+	cursor, err := env.Collection.Find(ctx, bson.M{"name": bson.Regex{Pattern: name, Options: "i"}})
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+	for cursor.Next(ctx) {
+		var doc Ctag
+		if err := cursor.Decode(&doc); err != nil {
+			continue
+		}
+		results = append(results, doc)
+	}
+	return results, nil
 }

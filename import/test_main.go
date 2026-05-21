@@ -14,8 +14,11 @@ func TestIsFile(t *testing.T) {
 	}
 }
 
-func TestreadFine(t *testing.T) {
-	c := readFile("main.go")
+func TestReadFile(t *testing.T) {
+	c, err := readFile("main.go")
+	if err != nil {
+		t.Fatalf("readFile error: %v", err)
+	}
 	if c == nil {
 		t.Error("Context is nil")
 	}
@@ -25,11 +28,14 @@ func TestreadFine(t *testing.T) {
 }
 
 func TestIsText(t *testing.T) {
-	files := [3]string{"main.go", "Makefile", "import-codebase.sh"}
+	files := [3]string{"main.go", "Makefile", "import/main.go"}
 	for _, fname := range files {
-		f, _ := os.ReadFile(fname)
+		f, err := os.ReadFile(fname)
+		if err != nil {
+			t.Fatalf("readFile(%s) error: %v", fname, err)
+		}
 		if IsText(f) == false {
-			t.Error("mime-type wrong identified")
+			t.Errorf("mime-type wrong identified for %s", fname)
 		}
 	}
 }

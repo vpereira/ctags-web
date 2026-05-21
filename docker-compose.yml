@@ -1,30 +1,38 @@
 services:
   postgres:
-    image: postgres
+    image: docker.io/ghcr.io/ferretdb/postgres-documentdb:17-0.107.0-ferretdb-2.7.0
     restart: on-failure
     environment:
       - POSTGRES_USER=test
       - POSTGRES_PASSWORD=test
-      - POSTGRES_DB=ferretdb
+      - POSTGRES_DB=postgres
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U test -d postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
     volumes:
-      - ./data:/var/lib/postgresql/data
+      - ./data/postgres:/var/lib/postgresql/data
+
   ferretdb:
-    image: ghcr.io/ferretdb/ferretdb
+    image: ferretdb/ferretdb:2.7.0
     restart: on-failure
+    environment:
+      - FERRETDB_POSTGRESQL_URL=postgres://test:test@postgres:5432/postgres
+      - FERRETDB_LOG_LEVEL=warn
     ports:
       - "27017:27017"
-    environment:
-      - FERRETDB_POSTGRESQL_URL=postgres://postgres:5432/ferretdb
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   web:
-    image: ctags-web/web
     build:
       dockerfile: Dockerfile
       context: .
-    volumes:
-      - $PWD:/ctags-web
-    working_dir: /ctags-web/web
-    command: tail -f /dev/null
     ports:
       - "8080:8080"
     depends_on:
-      - ferretdb
+      ferretdb:
+        condition: service_healthy
+    command: ["./web", "mongodb://test:test@ferretdb:27017/", "ctags", "ctags"]

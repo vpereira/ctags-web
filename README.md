@@ -1,64 +1,87 @@
-CTAGS-WEB
+# ctags-web
 
-Searchable web interface for universal ctags  tags, stored in mongodb.
+Small web UI for browsing a `universal-ctags` index stored in FerretDB.
 
-Index Page:
+It has three pieces:
 
-![alt text](https://user-images.githubusercontent.com/37418/30763621-64415e04-9fe7-11e7-9d52-a352887f40aa.png "Index Page")
+- `index/` reads `ctags.json` and stores tags
+- `import/` reads source files and stores code lines
+- `web/` serves search and file views on `:8080`
 
-Code Browsing with linking to line of code:
+The UI is simple:
 
-![alt text](https://user-images.githubusercontent.com/37418/30763622-644487be-9fe7-11e7-8af6-f9dc731dbac2.png "Code Browsing")
+- `/token?token=main` searches tags
+- `/show?file=/path/to/file.go&linecount=33` shows a file
 
-How to run it:
+## Run with Docker
 
-First you need universal-ctags. As soon as it installed put it to run like:
+Start everything:
 
-```
-ctags --recurse=yes --fields=* --output-format=json -f ctags.json $DIR
-```
-
-where ```$DIR``` is the directory that you want to index.
-
-After that you have to move the ```ctags.json``` to the mongodb.
-
-You do it using the tool ```index-go```. It should be called like:
-
-```
-./index-go $MONGODB $MYCTAGSJSON
-```
-where $MONGODB is the ip of your mongodb server and $MYCTAGSJSON your ```ctags.json```
-
-then import source code from $DIR
-
-```
-./import-go $MONGODB $DB code $DIR # the collection is hardcoded in the web-go, we have to fix it
+```bash
+docker compose up -d
 ```
 
-After that, starts the server rom ```web-go``` as:
+Open:
 
-```./web-go $MONGODB $DB $COLLECTION```
+```text
+http://localhost:8080/
+```
 
-Now you can point your browser to ```http://$SERVER:8080/``` and you are able to search for your tags
+The database data is stored under `data/postgres`.
 
+If you want a clean database:
 
+```bash
+docker compose down
+rm -rf data/postgres
+docker compose up -d
+```
 
-Running mongodb with Docker:
+## Build locally
 
-To do it you have to do the following:
+```bash
+make build
+```
 
-```docker build -t ctags-web .```
+That builds:
 
-and after that you enter in the bash:
+- `index/ctags-index`
+- `import/ctags-import`
+- `web/ctags-web`
 
-```docker run -ti -v "$PWD:/ctags-web" ctags-web /bin/bash```
+## Index a project
 
-If you get a ```#``` then you are ready to go!
+Generate the ctags JSON:
 
-Start mongodb with the command:
+```bash
+./scripts/run_ctags.sh .
+```
 
-```bash scripts/start_mongo.sh```
+Load tags:
 
-TODO: put the script to run as ```ENTRYPOINT```
+```bash
+./index/ctags-index "mongodb://test:test@localhost:27017/" ctags.json
+```
 
-now you have a mongodb up and running. You can connect with it, giving the ip (172.17.0.2)
+Load source lines:
+
+```bash
+./import/ctags-import "mongodb://test:test@localhost:27017/" ctags code .
+```
+
+Run the web server locally:
+
+```bash
+./web/ctags-web "mongodb://test:test@localhost:27017/" ctags ctags
+```
+
+If Docker is already running, you can also do the import inside the `web` container:
+
+```bash
+docker compose exec web sh -lc '
+ctags --recurse=yes --fields=* --output-format=json -f /tmp/ctags.json /app &&
+/app/index "mongodb://test:test@ferretdb:27017/" /tmp/ctags.json &&
+/app/import "mongodb://test:test@ferretdb:27017/" ctags code /app &&
+rm -f /tmp/ctags.json
+'
+```

@@ -1,10 +1,181 @@
-<html>
-<title>{{.FileName}}</title>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{.FileName}}</title>
+  <style>
+    :root {
+      --page-bg: #f3efe6;
+      --panel-bg: #fbf8f2;
+      --panel-border: #d4c5ad;
+      --header-bg: linear-gradient(135deg, #1e3a5f, #385d86 58%, #d48f43 100%);
+      --header-text: #fdf8ee;
+      --gutter-bg: #efe6d7;
+      --gutter-text: #7a6a56;
+      --code-text: #241f1a;
+      --muted-text: #7f7364;
+      --row-hover: #f5eee2;
+      --row-active: #ffe6b3;
+      --row-target: #f8d68b;
+      --shadow: 0 18px 40px rgba(54, 41, 22, 0.14);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        radial-gradient(circle at top left, rgba(255, 255, 255, 0.75), transparent 26rem),
+        linear-gradient(180deg, #f6f1e8 0%, var(--page-bg) 48%, #ebe1d2 100%);
+      color: var(--code-text);
+      font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+    }
+
+    .shell {
+      width: min(1200px, calc(100vw - 32px));
+      margin: 24px auto;
+    }
+
+    .editor {
+      overflow: hidden;
+      border: 1px solid var(--panel-border);
+      border-radius: 18px;
+      background: var(--panel-bg);
+      box-shadow: var(--shadow);
+    }
+
+    .editor-header {
+      padding: 18px 24px 20px;
+      background: var(--header-bg);
+      color: var(--header-text);
+    }
+
+    .editor-title {
+      margin: 0;
+      font-size: clamp(1.1rem, 2vw, 1.5rem);
+      line-height: 1.2;
+      word-break: break-all;
+    }
+
+    .editor-meta {
+      margin-top: 8px;
+      font-size: 0.95rem;
+      color: rgba(253, 248, 238, 0.86);
+    }
+
+    .editor-body {
+      overflow: auto;
+      padding: 10px 0;
+    }
+
+    .code-line {
+      display: grid;
+      grid-template-columns: 72px minmax(0, 1fr);
+      align-items: stretch;
+      text-decoration: none;
+      color: inherit;
+    }
+
+    .code-line:hover {
+      background: var(--row-hover);
+    }
+
+    .code-line.is-active {
+      background: var(--row-active);
+    }
+
+    .code-line:target {
+      background: var(--row-target);
+      scroll-margin-top: 24px;
+    }
+
+    .line-no {
+      padding: 0 14px;
+      border-right: 1px solid rgba(122, 106, 86, 0.16);
+      background: var(--gutter-bg);
+      color: var(--gutter-text);
+      text-align: right;
+      font: 500 13px/1.9 "SF Mono", "Monaco", "Cascadia Code", "Roboto Mono", Consolas, monospace;
+      user-select: none;
+    }
+
+    .line-code {
+      overflow-x: auto;
+      padding: 0 18px;
+      white-space: pre;
+      color: var(--code-text);
+      font: 15px/1.9 "SF Mono", "Monaco", "Cascadia Code", "Roboto Mono", Consolas, monospace;
+    }
+
+    .line-code:empty::before {
+      content: " ";
+    }
+
+    .footer-note {
+      padding: 12px 24px 18px;
+      color: var(--muted-text);
+      font-size: 0.9rem;
+    }
+
+    @media (max-width: 720px) {
+      .shell {
+        width: calc(100vw - 16px);
+        margin: 8px auto;
+      }
+
+      .editor {
+        border-radius: 12px;
+      }
+
+      .editor-header {
+        padding: 16px 16px 18px;
+      }
+
+      .code-line {
+        grid-template-columns: 56px minmax(0, 1fr);
+      }
+
+      .line-no {
+        padding: 0 10px;
+        font-size: 12px;
+      }
+
+      .line-code {
+        padding: 0 12px;
+        font-size: 13px;
+      }
+
+      .footer-note {
+        padding: 10px 16px 16px;
+      }
+    }
+  </style>
+</head>
 <body>
-  <div style="background: #eef;">
-    {{range .CodeLines}}
-    <pre><a name="{{ printf "l%d" .LineCount }}" href="{{ printf "#l%d" .LineCount }}">{{.LineCount}}</a>: {{.Line}}</pre>
-    {{end}}
-  </div>
+  <main class="shell">
+    <section class="editor">
+      <header class="editor-header">
+        <h1 class="editor-title">{{.FileName}}</h1>
+        <div class="editor-meta">Focused line: {{.LineCount}}</div>
+      </header>
+      <div class="editor-body">
+        {{range .CodeLines}}
+        <a
+          id="{{ printf "l%d" .LineCount }}"
+          href="{{ printf "#l%d" .LineCount }}"
+          class="code-line{{if eq $.LineCount .LineCount}} is-active{{end}}"
+        >
+          <span class="line-no">{{.LineCount}}</span>
+          <span class="line-code">{{.Line}}</span>
+        </a>
+        {{end}}
+      </div>
+      <div class="footer-note">Anchor any line by clicking its row.</div>
+    </section>
+  </main>
 </body>
 </html>
