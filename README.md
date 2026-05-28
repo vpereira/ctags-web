@@ -78,10 +78,8 @@ Run the web server locally:
 If Docker is already running, you can also do the import inside the `web` container:
 
 ```bash
-docker compose exec web sh -lc '
-ctags --recurse=yes --fields=* --output-format=json -f /tmp/ctags.json /app &&
-/app/index "mongodb://test:test@ferretdb:27017/" /tmp/ctags.json &&
-/app/import "mongodb://test:test@ferretdb:27017/" ctags code /app &&
-rm -f /tmp/ctags.json
-'
+docker compose exec web sh -lc 'ctags --recurse=yes --fields=* --output-format=json -f /tmp/ctags.json /app &&
+                                /app/index "mongodb://test:test@ferretdb:27017/" /tmp/ctags.json &&
+                                /app/import "mongodb://test:test@ferretdb:27017/" ctags code /app &&
+                                rm -f /tmp/ctags.json'
 ```
